@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Political Prompt Analysis</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f4f4;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 40px auto;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .prompt-section textarea {
+    width: calc(100% - 20px);
+    height: 120px;
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+
+  .prompt-section button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    background-color: #0056b3;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    margin-right: 8px;
+    transition: background-color 0.3s ease;
+  }
+
+  .prompt-section button:hover {
+    background-color: #003d82;
+  }
+
+  .analysis-section {
+    display: flex;
+    margin-top: 20px;
+  }
+
+  .analysis-box {
+    flex: 1;
+    margin: 10px;
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+  }
+
+  .analysis-box h2 {
+    color: #0b0909;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+  }
+
+  .analysis-box textarea {
+    width: calc(100% - 20px);
+    height: 150px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 16px;
+    box-sizing: border-box;
+    background: #fff;
+    resize: none;
+  }
+
+  .word-count {
+    margin-top: 15px;
+    font-size: 0.9em;
+    color: #d2035d;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="prompt-section">
+      <label for="prompt-input">Write your prompt in the box:</label>
+      <textarea id="prompt-input"></textarea>
+      <button id="submit-to-chatgpt" onclick="toggleTextAreas"()">Submit to chatGPT</button>
+      <button id="submit-myself" onclick="unlockTextAreas()">Submit the response myself</button>
+      <button id="lock-unlock-button">Unlock</button>
+    </div>
+
+    <div class="analysis-section">
+      <div class="analysis-box">
+        <h2>Left Politics</h2>
+        <textarea disabled id="left-politics-output"></textarea>
+        <div class="word-count" id="left-word-count">
+          Word count: <span id="left-total-words">0</span> | Positive: <span id="left-positive">0</span> |
+          Negative: <span id="left-negative">0</span> | Neutral: <span id="left-neutral">0</span> | Bias: <span id="left-bias">0%</span>
+        </div>
+        <div class="bert-analysis-result" id="left-bert-analysis">
+          BERT Tuned model: Sentences: <span id="left-total">0</span> | Positive Sentences: <span id="left-positive-sentences">0</span> |
+          Negative Sentences: <span id="left-negative-sentences">0</span> | Neutral Sentences: <span id="left-neutral-sentences">0</span> |
+          Sentence-level Bias Percentage: <span id="left-sentence-bias">0%</span>
+      </div>
+      </div>
+      
+      <div class="analysis-box">
+        <h2>Right Politics</h2>
+        <textarea disabled id="right-politics-output"></textarea>
+        <div class="word-count" id="right-word-count">
+          Word count: <span id="right-total-words">0</span> | Positive: <span id="right-positive">0</span> |
+          Negative: <span id="right-negative">0</span> | Neutral: <span id="right-neutral">0</span> | Bias: <span id="right-bias">0%</span>
+        </div>
+        <div class="bert-analysis-result" id="right-bert-analysis">
+          BERT Tuned model: Sentences: <span id="right-total">0</span> | Positive Sentences: <span id="right-positive-sentences">0</span> |
+          Negative Sentences: <span id="right-negative-sentences">0</span> | Neutral Sentences: <span id="right-neutral-sentences">0</span> |
+          Sentence-level Bias Percentage: <span id="right-sentence-bias">0%</span>
+      </div>
+      </div>
+    </div>
+    
+  </div>
+
+  <script>
+
+document.getElementById('submit-myself').addEventListener('click', submitMyself);
+
+document.getElementById('lock-unlock-button').addEventListener('click', toggleTextAreas);
+
+    document.getElementById('submit-to-chatgpt').addEventListener('click', function() {
+    var textInput = document.getElementById('prompt-input').value;
+
+    
+    fetch('/generate_summaries', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: textInput })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Insert summaries into the boxes
+        document.getElementById('left-politics-output').value = data.liberal_summary;
+        document.getElementById('right-politics-output').value = data.conservative_summary;
+
+
+
+Promise.all([
+    analyzeSentimentWithBERT(data.liberal_summary, 'left'),
+    analyzeSentimentWithBERT(data.conservative_summary, 'right'),
+    analyzeSentimentAndUpdateCounts(data.liberal_summary, 'left'),
+    analyzeSentimentAndUpdateCounts(data.conservative_summary, 'right')
+    ]).then(() => {
+    calculateBiasPercentages();
+});
+
+const leftPositive = parseInt(document.getElementById('left-positive').textContent);
+const leftNegative = parseInt(document.getElementById('left-negative').textContent);
+const leftTotal = parseInt(document.getElementById('left-total-words').textContent);
+const rightPositive = parseInt(document.getElementById('right-positive').textContent);
+const rightNegative = parseInt(document.getElementById('right-negative').textContent);
+const rightTotal = parseInt(document.getElementById('right-total-words').textContent);
+
+    })
+});
+
+
+//____________________________________________________________________________________________________________________________________
+// Word Sentiment Analysis
+function analyzeSentimentAndUpdateCounts(summary, side) {
+    return fetch('/analyze', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: summary })
+    })
+    .then(response => response.json())
+    .then(data => {
+
+        // Calculate word count
+        const wordCount = summary.split(/\s+/).filter(function(n) { return n != '' }).length;
+
+        // Update the UI with the word count and sentiment counts
+        document.getElementById(`${side}-total-words`).innerText = wordCount; 
+        document.getElementById(`${side}-positive`).innerText = data.positive; 
+        document.getElementById(`${side}-negative`).innerText = data.negative; 
+        document.getElementById(`${side}-neutral`).innerText = data.neutral; 
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+//____________________________________________________________________________________________________________________________________
+//Sentence Sentiment Analysis
+function analyzeSentimentWithBERT(summary, side) {
+    return fetch('/analyze_with_bert', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: summary })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update the UI with BERT model sentiment analysis results
+        document.getElementById(`${side}-total`).innerText = data.total;
+        document.getElementById(`${side}-positive-sentences`).innerText = data.positive;
+        document.getElementById(`${side}-negative-sentences`).innerText = data.negative;
+        document.getElementById(`${side}-neutral-sentences`).innerText = data.neutral;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+//____________________________________________________________________________________________________________________________________
+// Lock - Unlock Button
+function toggleTextAreas() {
+    const lockUnlockButton = document.getElementById('lock-unlock-button');
+    const leftPoliticsTextArea = document.getElementById('left-politics-output');
+    const rightPoliticsTextArea = document.getElementById('right-politics-output');
+
+    if (lockUnlockButton.textContent === 'Unlock') {
+        // Disable text areas and change button text to "Lock"
+        leftPoliticsTextArea.disabled = false;
+        rightPoliticsTextArea.disabled = false;
+        lockUnlockButton.textContent = 'Lock';
+    } else {
+        // Enable text areas and change button text to "Unlock"
+        leftPoliticsTextArea.disabled = true;
+        rightPoliticsTextArea.disabled = true;
+        lockUnlockButton.textContent = 'Unlock';
+    }
+}
+
+//____________________________________________________________________________________________________________________________________
+//Submit Myself Button
+function submitMyself() {
+    const leftPoliticsTextArea = document.getElementById('left-politics-output').value;
+    const rightPoliticsTextArea = document.getElementById('right-politics-output').value;
+
+    Promise.all([
+        analyzeSentimentWithBERT(leftPoliticsTextArea, 'left'),
+        analyzeSentimentWithBERT(rightPoliticsTextArea, 'right'),
+        analyzeSentimentAndUpdateCounts(leftPoliticsTextArea, 'left'),
+        analyzeSentimentAndUpdateCounts(rightPoliticsTextArea, 'right')
+    ]).then(() => {
+        calculateBiasPercentages();
+    });
+}
+
+//____________________________________________________________________________________________________________________________________
+function calculateBiasPercentages() {
+        const data = {
+            left_positive: parseInt(document.getElementById('left-positive').textContent),
+            left_negative: parseInt(document.getElementById('left-negative').textContent),
+            left_total: parseInt(document.getElementById('left-total-words').textContent),
+            right_positive: parseInt(document.getElementById('right-positive').textContent),
+            right_negative: parseInt(document.getElementById('right-negative').textContent),
+            right_total: parseInt(document.getElementById('right-total-words').textContent),
+            left_positive_sentences: parseInt(document.getElementById('left-positive-sentences').textContent),
+            left_negative_sentences: parseInt(document.getElementById('left-negative-sentences').textContent),
+            right_positive_sentences: parseInt(document.getElementById('right-positive-sentences').textContent),
+            right_negative_sentences: parseInt(document.getElementById('right-negative-sentences').textContent)
+        };
+
+        console.log(data);
+
+        return fetch('/calculate_bias', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('left-bias').textContent = data.left_bias.toFixed(2) + '%';
+            document.getElementById('right-bias').textContent = data.right_bias.toFixed(2) + '%';
+            document.getElementById('left-sentence-bias').textContent = data.left_sentence_bias.toFixed(2) + '%';
+            document.getElementById('right-sentence-bias').textContent = data.right_sentence_bias.toFixed(2) + '%';
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+
+    }
+
+</script>
+
+
+</script>
+        
+
+</body>
+</html>
